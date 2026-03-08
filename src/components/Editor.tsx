@@ -163,7 +163,8 @@ export const Editor: React.FC<EditorProps> = ({ initialImage }) => {
   const [stageSize, setStageSize] = useState({ width: 800, height: 600 });
   const [stageScale, setStageScale] = useState(1);
   const [stagePos, setStagePos] = useState({ x: 0, y: 0 });
-  const [isSpaceDown, setIsSpaceDown] = useState(false);
+  const [isSpacePressed, setIsSpacePressed] = useState(false);
+  const [stageCursor, setStageCursor] = useState<string>('default');
 
   useEffect(() => {
     if (initialImage) {
@@ -199,23 +200,46 @@ export const Editor: React.FC<EditorProps> = ({ initialImage }) => {
     };
     updateSize();
     window.addEventListener('resize', updateSize);
-    
+    return () => window.removeEventListener('resize', updateSize);
+  }, []);
+
+  useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Spacebar for hand tool
-      if (e.code === 'Space' && (e.target as HTMLElement).tagName !== 'TEXTAREA' && (e.target as HTMLElement).tagName !== 'INPUT') {
-        setIsSpaceDown(true);
-        if (!e.repeat) e.preventDefault();
-      }
+      const isInput = (e.target as HTMLElement).tagName === 'INPUT' || (e.target as HTMLElement).tagName === 'TEXTAREA';
       
-      // Shortcuts: Cmd/Ctrl + Plus, Minus, 0
-      if (e.metaKey || e.ctrlKey) {
+      // Photoshop Shortcuts logic
+      if (!isInput) {
+        // Space for Pan (Hand Tool)
+        if (e.code === 'Space') {
+          e.preventDefault();
+          setIsSpacePressed(true);
+          setStageCursor('grab');
+        }
+
+        // T for Text
+        if (e.key.toLowerCase() === 't') addText();
+        
+        // V for Selection
+        if (e.key.toLowerCase() === 'v') setSelectedId(null);
+
+        // Delete/Backspace for Delete Layer
+        if ((e.key === 'Delete' || e.key === 'Backspace') && selectedId) {
+          deleteLayer(selectedId);
+        }
+      }
+
+      // Cmd/Ctrl based shortcuts (work even if input is focused if needed, but usually not)
+      const isCmd = e.metaKey || e.ctrlKey;
+      if (isCmd) {
         if (e.key === '=' || e.key === '+') {
           e.preventDefault();
-          setStageScale(prev => Math.min(10, prev * 1.2));
-        } else if (e.key === '-') {
+          zoomCentered(1.1);
+        }
+        if (e.key === '-') {
           e.preventDefault();
-          setStageScale(prev => Math.max(0.1, prev / 1.2));
-        } else if (e.key === '0') {
+          zoomCentered(0.9);
+        }
+        if (e.key === '0') {
           e.preventDefault();
           resetZoom();
         }
@@ -224,19 +248,41 @@ export const Editor: React.FC<EditorProps> = ({ initialImage }) => {
 
     const handleKeyUp = (e: KeyboardEvent) => {
       if (e.code === 'Space') {
-        setIsSpaceDown(false);
+        setIsSpacePressed(false);
+        setStageCursor('default');
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('keyup', handleKeyUp);
-
     return () => {
-      window.removeEventListener('resize', updateSize);
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, []);
+  }, [selectedId, stageScale, stagePos]); // Dependencies for zoom and delete logic
+
+  const zoomCentered = (factor: number) => {
+    const stage = stageRef.current;
+    if (!stage) return;
+    
+    const oldScale = stage.scaleX();
+    const newScale = Math.max(0.1, Math.min(10, oldScale * factor));
+    
+    // Zoom relative to stage center
+    const centerX = stage.width() / 2;
+    const centerY = stage.height() / 2;
+    
+    const mousePointTo = {
+      x: (centerX - stage.x()) / oldScale,
+      y: (centerY - stage.y()) / oldScale,
+    };
+
+    setStageScale(newScale);
+    setStagePos({
+      x: centerX - mousePointTo.x * newScale,
+      y: centerY - mousePointTo.y * newScale,
+    });
+  };
 
   const addText = () => {
     const id = Math.random().toString(36).substr(2, 9);
@@ -317,24 +363,16 @@ export const Editor: React.FC<EditorProps> = ({ initialImage }) => {
       y: (pointer.y - stage.y()) / oldScale,
     };
 
-    // Photoshop behavior: Alt + Wheel OR Pinch (ctrlKey) = Zoom
-    if (e.evt.altKey || e.evt.ctrlKey) {
-      const delta = e.evt.ctrlKey ? -e.evt.deltaY * 0.01 : -e.evt.deltaY * 0.001;
-      const newScale = Math.max(0.1, Math.min(10, oldScale + delta));
-      setStageScale(newScale);
-      setStagePos({
-        x: pointer.x - mousePointTo.x * newScale,
-        y: pointer.y - mousePointTo.y * newScale,
-      });
-    } else {
-      // Photoshop behavior: Scroll = Pan
-      // Shift + Scroll = Horizontal Pan
-      if (e.evt.shiftKey) {
-        setStagePos(prev => ({ ...prev, x: prev.x - e.evt.deltaY }));
-      } else {
-        setStagePos(prev => ({ ...prev, y: prev.y - e.evt.deltaY }));
-      }
-    }
+    // MacBook pinch-to-zoom gesture uses ctrlKey + deltaY
+    const isPinch = e.evt.ctrlKey;
+    const delta = isPinch ? -e.evt.deltaY * 0.01 : -e.evt.deltaY * 0.001;
+    const newScale = Math.max(0.1, Math.min(10, oldScale + delta));
+
+    setStageScale(newScale);
+    setStagePos({
+      x: pointer.x - mousePointTo.x * newScale,
+      y: pointer.y - mousePointTo.y * newScale,
+    });
   };
 
   const resetZoom = () => {
@@ -423,24 +461,16 @@ export const Editor: React.FC<EditorProps> = ({ initialImage }) => {
           x={stagePos.x}
           y={stagePos.y}
           onWheel={handleWheel}
-          draggable={isSpaceDown}
-          style={{ cursor: isSpaceDown ? 'grab' : 'default' }}
+          draggable={isSpacePressed}
+          style={{ cursor: isSpacePressed ? (stageCursor === 'grabbing' ? 'grabbing' : 'grab') : 'default' }}
+          onDragStart={() => setStageCursor('grabbing')}
+          onDragEnd={(e) => {
+            setStageCursor('grab');
+            setStagePos({ x: e.target.x(), y: e.target.y() });
+          }}
           onMouseDown={(e) => {
             const clickedOnEmpty = e.target === e.target.getStage();
             if (clickedOnEmpty) setSelectedId(null);
-          }}
-          onDragStart={() => {
-            if (isSpaceDown) {
-              const canvas = stageRef.current.container();
-              canvas.style.cursor = 'grabbing';
-            }
-          }}
-          onDragEnd={(e) => {
-            if (isSpaceDown) {
-              const canvas = stageRef.current.container();
-              canvas.style.cursor = 'grab';
-              setStagePos({ x: e.target.x(), y: e.target.y() });
-            }
           }}
         >
           <KonvaLayer>
