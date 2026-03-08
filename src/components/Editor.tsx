@@ -506,10 +506,16 @@ export const Editor: React.FC<EditorProps> = ({ initialImage, currentRatio, onRa
           onWheel={handleWheel}
           draggable={isSpacePressed}
           style={{ cursor: isSpacePressed ? (stageCursor === 'grabbing' ? 'grabbing' : 'grab') : 'default' }}
-          onDragStart={() => setStageCursor('grabbing')}
+          onDragStart={(e) => {
+            if (e.target === stageRef.current) {
+              setStageCursor('grabbing');
+            }
+          }}
           onDragEnd={(e) => {
-            setStageCursor('grab');
-            setStagePos({ x: e.target.x(), y: e.target.y() });
+            if (e.target === stageRef.current) {
+              setStageCursor('grab');
+              setStagePos({ x: e.target.x(), y: e.target.y() });
+            }
           }}
           onMouseDown={(e) => {
             const clickedOnEmpty = e.target === e.target.getStage();
