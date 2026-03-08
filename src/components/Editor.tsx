@@ -161,6 +161,8 @@ export const Editor: React.FC<EditorProps> = ({ initialImage }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [stageSize, setStageSize] = useState({ width: 800, height: 600 });
+  const [stageScale, setStageScale] = useState(1);
+  const [stagePos, setStagePos] = useState({ x: 0, y: 0 });
 
   useEffect(() => {
     if (initialImage) {
@@ -264,6 +266,37 @@ export const Editor: React.FC<EditorProps> = ({ initialImage }) => {
     }
   };
 
+  const handleWheel = (e: any) => {
+    e.evt.preventDefault();
+    const stage = stageRef.current;
+    if (!stage) return;
+
+    const oldScale = stage.scaleX();
+    const pointer = stage.getPointerPosition();
+    if (!pointer) return;
+
+    const mousePointTo = {
+      x: (pointer.x - stage.x()) / oldScale,
+      y: (pointer.y - stage.y()) / oldScale,
+    };
+
+    // MacBook pinch-to-zoom gesture uses ctrlKey + deltaY
+    const isPinch = e.evt.ctrlKey;
+    const delta = isPinch ? -e.evt.deltaY * 0.01 : -e.evt.deltaY * 0.001;
+    const newScale = Math.max(0.1, Math.min(10, oldScale + delta));
+
+    setStageScale(newScale);
+    setStagePos({
+      x: pointer.x - mousePointTo.x * newScale,
+      y: pointer.y - mousePointTo.y * newScale,
+    });
+  };
+
+  const resetZoom = () => {
+    setStageScale(1);
+    setStagePos({ x: 0, y: 0 });
+  };
+
   const PRESET_COLORS = [
     '#ffffff', '#000000', '#3b82f6', '#10b981', '#ef4444', 
     '#f59e0b', '#8b5cf6', '#ec4899', '#6366f1', '#14b8a6'
@@ -340,6 +373,12 @@ export const Editor: React.FC<EditorProps> = ({ initialImage }) => {
           width={stageSize.width}
           height={stageSize.height}
           ref={stageRef}
+          scaleX={stageScale}
+          scaleY={stageScale}
+          x={stagePos.x}
+          y={stagePos.y}
+          onWheel={handleWheel}
+          draggable
           onMouseDown={(e) => {
             const clickedOnEmpty = e.target === e.target.getStage();
             if (clickedOnEmpty) setSelectedId(null);
@@ -367,6 +406,22 @@ export const Editor: React.FC<EditorProps> = ({ initialImage }) => {
             ))}
           </KonvaLayer>
         </Stage>
+
+        {/* Zoom Controls */}
+        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-white/10 backdrop-blur-md border border-white/10 rounded-full px-4 py-2 flex items-center gap-4 shadow-2xl z-10 pointer-events-auto">
+          <div className="text-[10px] font-bold uppercase tracking-widest text-white/60">
+            Zoom
+          </div>
+          <div className="text-xs font-mono text-emerald-500 min-w-[40px] text-center">
+            {Math.round(stageScale * 100)}%
+          </div>
+          <button 
+            onClick={resetZoom}
+            className="text-[10px] font-bold uppercase tracking-widest bg-white/10 hover:bg-white/20 px-3 py-1 rounded-full transition-colors"
+          >
+            Reset
+          </button>
+        </div>
       </div>
 
       {/* Layers Panel */}
