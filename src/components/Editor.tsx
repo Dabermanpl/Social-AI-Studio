@@ -163,6 +163,7 @@ export const Editor: React.FC<EditorProps> = ({ initialImage }) => {
   const [stageSize, setStageSize] = useState({ width: 800, height: 600 });
   const [stageScale, setStageScale] = useState(1);
   const [stagePos, setStagePos] = useState({ x: 0, y: 0 });
+  const [isSpaceDown, setIsSpaceDown] = useState(false);
 
   useEffect(() => {
     if (initialImage) {
@@ -198,7 +199,43 @@ export const Editor: React.FC<EditorProps> = ({ initialImage }) => {
     };
     updateSize();
     window.addEventListener('resize', updateSize);
-    return () => window.removeEventListener('resize', updateSize);
+    
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Spacebar for hand tool
+      if (e.code === 'Space' && (e.target as HTMLElement).tagName !== 'TEXTAREA' && (e.target as HTMLElement).tagName !== 'INPUT') {
+        setIsSpaceDown(true);
+        if (!e.repeat) e.preventDefault();
+      }
+      
+      // Shortcuts: Cmd/Ctrl + Plus, Minus, 0
+      if (e.metaKey || e.ctrlKey) {
+        if (e.key === '=' || e.key === '+') {
+          e.preventDefault();
+          setStageScale(prev => Math.min(10, prev * 1.2));
+        } else if (e.key === '-') {
+          e.preventDefault();
+          setStageScale(prev => Math.max(0.1, prev / 1.2));
+        } else if (e.key === '0') {
+          e.preventDefault();
+          resetZoom();
+        }
+      }
+    };
+
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.code === 'Space') {
+        setIsSpaceDown(false);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+
+    return () => {
+      window.removeEventListener('resize', updateSize);
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+    };
   }, []);
 
   const addText = () => {
@@ -280,16 +317,24 @@ export const Editor: React.FC<EditorProps> = ({ initialImage }) => {
       y: (pointer.y - stage.y()) / oldScale,
     };
 
-    // MacBook pinch-to-zoom gesture uses ctrlKey + deltaY
-    const isPinch = e.evt.ctrlKey;
-    const delta = isPinch ? -e.evt.deltaY * 0.01 : -e.evt.deltaY * 0.001;
-    const newScale = Math.max(0.1, Math.min(10, oldScale + delta));
-
-    setStageScale(newScale);
-    setStagePos({
-      x: pointer.x - mousePointTo.x * newScale,
-      y: pointer.y - mousePointTo.y * newScale,
-    });
+    // Photoshop behavior: Alt + Wheel OR Pinch (ctrlKey) = Zoom
+    if (e.evt.altKey || e.evt.ctrlKey) {
+      const delta = e.evt.ctrlKey ? -e.evt.deltaY * 0.01 : -e.evt.deltaY * 0.001;
+      const newScale = Math.max(0.1, Math.min(10, oldScale + delta));
+      setStageScale(newScale);
+      setStagePos({
+        x: pointer.x - mousePointTo.x * newScale,
+        y: pointer.y - mousePointTo.y * newScale,
+      });
+    } else {
+      // Photoshop behavior: Scroll = Pan
+      // Shift + Scroll = Horizontal Pan
+      if (e.evt.shiftKey) {
+        setStagePos(prev => ({ ...prev, x: prev.x - e.evt.deltaY }));
+      } else {
+        setStagePos(prev => ({ ...prev, y: prev.y - e.evt.deltaY }));
+      }
+    }
   };
 
   const resetZoom = () => {
@@ -378,10 +423,24 @@ export const Editor: React.FC<EditorProps> = ({ initialImage }) => {
           x={stagePos.x}
           y={stagePos.y}
           onWheel={handleWheel}
-          draggable
+          draggable={isSpaceDown}
+          style={{ cursor: isSpaceDown ? 'grab' : 'default' }}
           onMouseDown={(e) => {
             const clickedOnEmpty = e.target === e.target.getStage();
             if (clickedOnEmpty) setSelectedId(null);
+          }}
+          onDragStart={() => {
+            if (isSpaceDown) {
+              const canvas = stageRef.current.container();
+              canvas.style.cursor = 'grabbing';
+            }
+          }}
+          onDragEnd={(e) => {
+            if (isSpaceDown) {
+              const canvas = stageRef.current.container();
+              canvas.style.cursor = 'grab';
+              setStagePos({ x: e.target.x(), y: e.target.y() });
+            }
           }}
         >
           <KonvaLayer>
