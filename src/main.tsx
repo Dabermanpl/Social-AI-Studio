@@ -4,7 +4,7 @@ import App from './App.tsx';
 import './index.css';
 import setupLocator from '@locator/runtime';
 
-if (process.env.NODE_ENV === 'development') {
+if (import.meta.env.DEV) {
   setupLocator();
 }
 

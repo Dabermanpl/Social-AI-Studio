@@ -30,6 +30,7 @@
     "vite": "^6.2.0"
   },
   "devDependencies": {
+    "@locator/babel-jsx": "^0.5.1",
     "@locator/runtime": "^0.5.1",
     "@types/express": "^4.17.21",
     "@types/node": "^22.14.0",
