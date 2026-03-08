@@ -26,9 +26,10 @@ interface EditorProps {
   onRatioChange: (ratio: AspectRatio) => void;
 }
 
-const ImageLayer = ({ layer, isSelected, onSelect, onChange }: { 
+const ImageLayer = ({ layer, isSelected, isSpacePressed, onSelect, onChange }: { 
   layer: Layer; 
   isSelected: boolean; 
+  isSpacePressed: boolean;
   onSelect: () => void;
   onChange: (newAttrs: Partial<Layer>) => void;
 }) => {
@@ -55,7 +56,7 @@ const ImageLayer = ({ layer, isSelected, onSelect, onChange }: {
         width={layer.width}
         height={layer.height}
         rotation={layer.rotation || 0}
-        draggable={!layer.locked && layer.visible}
+        draggable={!isSpacePressed && !layer.locked && layer.visible}
         visible={layer.visible}
         onDragEnd={(e) => {
           onChange({
@@ -78,7 +79,7 @@ const ImageLayer = ({ layer, isSelected, onSelect, onChange }: {
           });
         }}
       />
-      {isSelected && !layer.locked && (
+      {isSelected && !layer.locked && !isSpacePressed && (
         <Transformer
           ref={trRef}
           boundBoxFunc={(oldBox, newBox) => {
@@ -93,9 +94,10 @@ const ImageLayer = ({ layer, isSelected, onSelect, onChange }: {
   );
 };
 
-const TextLayer = ({ layer, isSelected, onSelect, onChange }: { 
+const TextLayer = ({ layer, isSelected, isSpacePressed, onSelect, onChange }: { 
   layer: Layer; 
   isSelected: boolean; 
+  isSpacePressed: boolean;
   onSelect: () => void;
   onChange: (newAttrs: Partial<Layer>) => void;
 }) => {
@@ -121,7 +123,7 @@ const TextLayer = ({ layer, isSelected, onSelect, onChange }: {
         fontSize={layer.fontSize || 24}
         fill={layer.fill || '#ffffff'}
         rotation={layer.rotation || 0}
-        draggable={!layer.locked && layer.visible}
+        draggable={!isSpacePressed && !layer.locked && layer.visible}
         visible={layer.visible}
         onDragEnd={(e) => {
           onChange({
@@ -142,7 +144,7 @@ const TextLayer = ({ layer, isSelected, onSelect, onChange }: {
           });
         }}
       />
-      {isSelected && !layer.locked && (
+      {isSelected && !layer.locked && !isSpacePressed && (
         <Transformer
           ref={trRef}
           enabledAnchors={['top-left', 'top-right', 'bottom-left', 'bottom-right']}
@@ -555,6 +557,7 @@ export const Editor: React.FC<EditorProps> = ({ initialImage, currentRatio, onRa
                       key={layer.id}
                       layer={layer}
                       isSelected={layer.id === selectedId}
+                      isSpacePressed={isSpacePressed}
                       onSelect={() => setSelectedId(layer.id)}
                       onChange={(newAttrs) => handleLayerChange(layer.id, newAttrs)}
                     />
@@ -563,6 +566,7 @@ export const Editor: React.FC<EditorProps> = ({ initialImage, currentRatio, onRa
                       key={layer.id}
                       layer={layer}
                       isSelected={layer.id === selectedId}
+                      isSpacePressed={isSpacePressed}
                       onSelect={() => setSelectedId(layer.id)}
                       onChange={(newAttrs) => handleLayerChange(layer.id, newAttrs)}
                     />
