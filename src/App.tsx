@@ -322,20 +322,6 @@ export default function App() {
             </div>
           </section>
 
-          <section>
-            <div className="flex items-center gap-2 mb-4 text-xs font-semibold text-white/40 uppercase tracking-widest">
-              <Info className="w-3 h-3" />
-              Wskazówki
-            </div>
-            <div className="space-y-3 text-sm text-white/60">
-              <p className="p-3 bg-white/5 rounded-lg border border-white/5">
-                Bądź precyzyjny w opisie kolorów, oświetlenia i stylu (np. "neonowy", "fotorealistyczny").
-              </p>
-              <p className="p-3 bg-white/5 rounded-lg border border-white/5">
-                Możesz poprosić o konkretny styl mediów społecznościowych, np. "estetyka Instagrama".
-              </p>
-            </div>
-          </section>
         </div>
 
         <div className="p-6 border-t border-white/10">
