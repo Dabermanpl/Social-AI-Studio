@@ -600,7 +600,11 @@ export default function App() {
         </div>
       </div>
     ) : (
-      <Editor initialImage={editorImage || undefined} />
+      <Editor 
+        initialImage={editorImage || undefined} 
+        currentRatio={selectedRatio} 
+        onRatioChange={setSelectedRatio} 
+      />
     )}
   </div>
 </main>

@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Stage, Layer as KonvaLayer, Image as KonvaImage, Text as KonvaText, Transformer } from 'react-konva';
+import { Stage, Layer as KonvaLayer, Image as KonvaImage, Text as KonvaText, Transformer, Group, Rect } from 'react-konva';
 import useImage from 'use-image';
 import { 
   Type, 
@@ -17,11 +17,13 @@ import {
   Image as ImageIcon,
   Pipette
 } from 'lucide-react';
-import { Layer } from '../types';
+import { Layer, AspectRatio } from '../types';
 import { cn } from '../lib/utils';
 
 interface EditorProps {
   initialImage?: string;
+  currentRatio: AspectRatio;
+  onRatioChange: (ratio: AspectRatio) => void;
 }
 
 const ImageLayer = ({ layer, isSelected, onSelect, onChange }: { 
@@ -154,10 +156,11 @@ const TextLayer = ({ layer, isSelected, onSelect, onChange }: {
   );
 };
 
-export const Editor: React.FC<EditorProps> = ({ initialImage }) => {
+export const Editor: React.FC<EditorProps> = ({ initialImage, currentRatio, onRatioChange }) => {
   const [layers, setLayers] = useState<Layer[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const stageRef = useRef<any>(null);
+  const artboardRef = useRef<any>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [stageSize, setStageSize] = useState({ width: 800, height: 600 });
@@ -165,6 +168,29 @@ export const Editor: React.FC<EditorProps> = ({ initialImage }) => {
   const [stagePos, setStagePos] = useState({ x: 0, y: 0 });
   const [isSpacePressed, setIsSpacePressed] = useState(false);
   const [stageCursor, setStageCursor] = useState<string>('default');
+
+  const getBoardSize = (ratio: AspectRatio) => {
+    const maxWidth = 500;
+    const maxHeight = 500;
+    
+    let width = maxWidth;
+    let height = maxHeight;
+
+    switch(ratio) {
+      case '1:1': width = 500; height = 500; break;
+      case '16:9': width = 500; height = 281; break;
+      case '9:16': width = 281; height = 500; break;
+      case '4:3': width = 500; height = 375; break;
+      case '3:4': width = 375; height = 500; break;
+    }
+    return { width, height };
+  };
+
+  const boardSize = getBoardSize(currentRatio);
+  const boardOffset = {
+    x: stageSize.width / 2 - boardSize.width / 2,
+    y: stageSize.height / 2 - boardSize.height / 2,
+  };
 
   useEffect(() => {
     if (initialImage) {
@@ -406,10 +432,27 @@ export const Editor: React.FC<EditorProps> = ({ initialImage }) => {
   const download = () => {
     setSelectedId(null);
     setTimeout(() => {
-      const uri = stageRef.current.toDataURL();
+      // Create a temporary canvas with original dimensions (not the zoomed editor view)
+      // to ensure pixel-perfect export.
+      const uri = artboardRef.current.toDataURL({
+        x: boardOffset.x - 20, // include shadow/margin if needed, or just board
+        y: boardOffset.y - 20,
+        width: boardSize.width + 40,
+        height: boardSize.height + 40,
+        pixelRatio: 2
+      });
+      // Actually, for a clean export, we just want the board:
+      const cleanUri = artboardRef.current.toDataURL({
+        x: boardOffset.x,
+        y: boardOffset.y,
+        width: boardSize.width,
+        height: boardSize.height,
+        pixelRatio: 3 // high density
+      });
+
       const link = document.createElement('a');
-      link.download = 'edited-image.png';
-      link.href = uri;
+      link.download = `social-ai-${currentRatio.replace(':', '-')}.png`;
+      link.href = cleanUri;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -473,26 +516,54 @@ export const Editor: React.FC<EditorProps> = ({ initialImage }) => {
             if (clickedOnEmpty) setSelectedId(null);
           }}
         >
-          <KonvaLayer>
-            {layers.map((layer) => (
-              layer.type === 'image' ? (
-                <ImageLayer
-                  key={layer.id}
-                  layer={layer}
-                  isSelected={layer.id === selectedId}
-                  onSelect={() => setSelectedId(layer.id)}
-                  onChange={(newAttrs) => handleLayerChange(layer.id, newAttrs)}
-                />
-              ) : (
-                <TextLayer
-                  key={layer.id}
-                  layer={layer}
-                  isSelected={layer.id === selectedId}
-                  onSelect={() => setSelectedId(layer.id)}
-                  onChange={(newAttrs) => handleLayerChange(layer.id, newAttrs)}
-                />
-              )
-            ))}
+          <KonvaLayer ref={artboardRef}>
+            {/* Artboard Shadow */}
+            <Rect
+              x={boardOffset.x}
+              y={boardOffset.y}
+              width={boardSize.width}
+              height={boardSize.height}
+              fill="white"
+              shadowColor="black"
+              shadowBlur={20}
+              shadowOpacity={0.1}
+              shadowOffset={{ x: 0, y: 5 }}
+            />
+
+            {/* Artboard Content with Clipping */}
+            <Group clipX={boardOffset.x} clipY={boardOffset.y} clipWidth={boardSize.width} clipHeight={boardSize.height}>
+              {/* White Artboard Background */}
+              <Rect
+                x={boardOffset.x}
+                y={boardOffset.y}
+                width={boardSize.width}
+                height={boardSize.height}
+                fill="white"
+              />
+              
+              {/* Layers Grouped for Relative Offsetting */}
+              <Group x={boardOffset.x} y={boardOffset.y}>
+                {layers.map((layer) => (
+                  layer.type === 'image' ? (
+                    <ImageLayer
+                      key={layer.id}
+                      layer={layer}
+                      isSelected={layer.id === selectedId}
+                      onSelect={() => setSelectedId(layer.id)}
+                      onChange={(newAttrs) => handleLayerChange(layer.id, newAttrs)}
+                    />
+                  ) : (
+                    <TextLayer
+                      key={layer.id}
+                      layer={layer}
+                      isSelected={layer.id === selectedId}
+                      onSelect={() => setSelectedId(layer.id)}
+                      onChange={(newAttrs) => handleLayerChange(layer.id, newAttrs)}
+                    />
+                  )
+                ))}
+              </Group>
+            </Group>
           </KonvaLayer>
         </Stage>
 
@@ -650,6 +721,26 @@ export const Editor: React.FC<EditorProps> = ({ initialImage }) => {
             </div>
           </div>
         )}
+        
+        <div className="p-4 border-t border-white/10 bg-black/20">
+          <label className="text-[10px] uppercase tracking-widest text-white/40 font-bold mb-3 block">Format Projektu</label>
+          <div className="grid grid-cols-2 gap-2">
+            {(['1:1', '16:9', '9:16', '4:3', '3:4'] as AspectRatio[]).map((r) => (
+              <button
+                key={r}
+                onClick={() => onRatioChange(r)}
+                className={cn(
+                  "p-2 text-[10px] font-bold rounded-lg border transition-all",
+                  currentRatio === r 
+                    ? "bg-emerald-500 text-black border-emerald-500" 
+                    : "bg-white/5 border-white/10 text-white/40 hover:text-white hover:bg-white/10"
+                )}
+              >
+                {r}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   );
