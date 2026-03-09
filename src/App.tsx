@@ -280,22 +280,6 @@ export default function App() {
           <h1 className="text-xl font-bold tracking-tight">Social AI</h1>
         </div>
 
-        <div className="p-4 mx-6 mt-4 bg-emerald-500/5 border border-emerald-500/10 rounded-2xl">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-[10px] uppercase tracking-widest text-white/40 font-bold">Status API</span>
-            <div className={cn("w-2 h-2 rounded-full", hasKey ? "bg-emerald-500" : "bg-amber-500")} />
-          </div>
-          <p className="text-[11px] text-white/60 mb-3">
-            {hasKey ? "Używasz własnego klucza API (brak limitów)." : "Używasz darmowego klucza (możliwe limity)."}
-          </p>
-          <button 
-            onClick={openKeyDialog}
-            className="w-full py-2 px-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-[10px] font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition-all"
-          >
-            <Key className="w-3 h-3" />
-            {hasKey ? "Zmień klucz API" : "Dodaj własny klucz"}
-          </button>
-        </div>
 
         <div className="flex-1 overflow-y-auto p-6 space-y-8">
           <section>
